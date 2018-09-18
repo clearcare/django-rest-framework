@@ -2,9 +2,24 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup
+from setuptools.command.test import test as TestCommand
 import re
 import os
 import sys
+
+
+# This command has been borrowed from
+# https://github.com/getsentry/sentry/blob/master/setup.py
+class PyTest(TestCommand):
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = ['tests']
+        self.test_suite = True
+
+    def run_tests(self):
+        import pytest
+        errno = pytest.main(self.test_args)
+        sys.exit(errno)
 
 
 def get_version(package):
@@ -44,8 +59,14 @@ version = get_version('rest_framework')
 
 
 if sys.argv[-1] == 'publish':
-    os.system("python setup.py sdist upload")
-    os.system("python setup.py bdist_wheel upload")
+    if os.system("pip freeze | grep wheel"):
+        print("wheel not installed.\nUse `pip install wheel`.\nExiting.")
+        sys.exit()
+    if os.system("pip freeze | grep twine"):
+        print("twine not installed.\nUse `pip install twine`.\nExiting.")
+        sys.exit()
+    os.system("python setup.py sdist bdist_wheel")
+    os.system("twine upload dist/*")
     print("You probably want to also tag the version now:")
     print("  git tag -a %s -m 'version %s'" % (version, version))
     print("  git push --tags")
@@ -62,7 +83,7 @@ setup(
     author_email='tom@tomchristie.com',  # SEE NOTE BELOW (*)
     packages=get_packages('rest_framework'),
     package_data=get_package_data('rest_framework'),
-    test_suite='rest_framework.runtests.runtests.main',
+    cmdclass={'test': PyTest},
     install_requires=[],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
